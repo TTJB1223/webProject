@@ -1,0 +1,96 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+
+#app {
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 0 10px;
+}
+
+/* 连接状态提示 */
+.status {
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.status.connecting { background: #e0f2fe; color: #0284c7; }
+.status.open { background: #dcfce7; color: #16a34a; }
+.status.error { background: #fee2e2; color: #dc2626; }
+.status.closed { background: #fef3c7; color: #d97706; }
+
+/* 消息列表 */
+.message-list {
+  height: 400px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 10px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.message-item {
+  margin: 8px 0;
+  max-width: 70%;
+}
+
+.message-item.sent {
+  margin-left: auto;
+}
+
+.message-item .content {
+  padding: 6px 10px;
+  border-radius: 6px;
+  word-wrap: break-word;
+}
+
+.sent .content {
+  background: #3b82f6;
+  color: white;
+}
+
+.received .content {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* 输入区域 */
+.input-area {
+  display: flex;
+  gap: 8px;
+}
+
+.input-area input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  outline: none;
+}
+
+.input-area input:focus {
+  border-color: #3b82f6;
+}
+
+.input-area button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.send-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.close-btn {
+  background: #ef4444;
+  color: white;
+}
