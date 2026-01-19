@@ -38,24 +38,19 @@ import { ref, onMounted, onUnmounted } from 'vue';
 // --------------------------
 // 1. 响应式数据（页面展示用）
 // --------------------------
-// 消息列表
 const messageList = ref([]);
-// 输入框内容
 const inputMsg = ref('');
-// 连接状态（connecting/open/error/closed）
 const status = ref('connecting');
-// 状态提示文字
 const statusText = ref('正在连接 WebSocket...');
 
 // --------------------------
-// 2. WebSocket 核心变量（非响应式，仅逻辑用）
+// 2. WebSocket 核心变量
 // --------------------------
-// WebSocket 实例
 let ws = null;
-// 重连定时器（避免重复重连）
 let reconnectTimer = null;
-// WebSocket 服务地址（公共回显服务，发什么返回什么）
-const WS_URL = 'ws://124.222.6.60:8800';
+// 关键修改：将 ws:// 改为 wss://（需确保服务端配置了WSS）
+// 注意：这里需要替换成你自己的域名（不能用IP），因为SSL证书绑定的是域名
+const WS_URL = 'wss://你的域名:8800'; // 例如：wss://demo.xxx.com:8800
 
 // --------------------------
 // 3. 工具函数：格式化时间
@@ -66,73 +61,71 @@ const formatTime = () => {
 };
 
 // --------------------------
-// 4. WebSocket 核心逻辑
+// 4. WebSocket 核心逻辑（增加容错）
 // --------------------------
-// 建立连接（核心函数）
 const initWebSocket = () => {
-  // 先清空之前的定时器（避免重复重连）
   if (reconnectTimer) clearTimeout(reconnectTimer);
 
-  // 创建 WebSocket 实例（无类封装，直接创建）
-  ws = new WebSocket(WS_URL);
-
-  // 监听：连接成功
-  ws.onopen = () => {
-    status.value = 'open';
-    statusText.value = '✅ 连接成功，可以发送消息';
-    console.log('WebSocket 连接成功');
-  };
-
-  // 监听：接收消息
-  ws.onmessage = (event) => {
-    // 把服务端返回的消息添加到列表
-    messageList.value.push({
-      content: event.data,
-      isSent: false, // 接收的消息
-      time: formatTime()
-    });
-    console.log('收到消息：', event.data);
-  };
-
-  // 监听：连接错误
-  ws.onerror = (error) => {
+  // 增加浏览器兼容性检查
+  if (!window.WebSocket) {
     status.value = 'error';
-    statusText.value = '❌ 连接出错，即将重连';
-    console.error('WebSocket 错误：', error);
-  };
+    statusText.value = '❌ 你的浏览器不支持WebSocket';
+    return;
+  }
 
-  // 监听：连接关闭
-  ws.onclose = (event) => {
-    status.value = 'closed';
-    // 区分手动关闭和异常关闭
-    if (event.code === 1000) {
-      statusText.value = '🔌 已手动关闭连接';
-    } else {
-      statusText.value = `🔌 连接断开（状态码：${event.code}），3秒后重连...`;
-      // 异常关闭则自动重连（3秒延迟）
-      reconnectTimer = setTimeout(initWebSocket, 3000);
-    }
-    console.log('WebSocket 关闭，状态码：', event.code);
-  };
+  try {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      status.value = 'open';
+      statusText.value = '✅ 连接成功，可以发送消息';
+      console.log('WebSocket 连接成功');
+    };
+
+    ws.onmessage = (event) => {
+      messageList.value.push({
+        content: event.data,
+        isSent: false,
+        time: formatTime()
+      });
+      console.log('收到消息：', event.data);
+    };
+
+    ws.onerror = (error) => {
+      status.value = 'error';
+      statusText.value = '❌ 连接出错，即将重连';
+      console.error('WebSocket 错误：', error);
+    };
+
+    ws.onclose = (event) => {
+      status.value = 'closed';
+      if (event.code === 1000) {
+        statusText.value = '🔌 已手动关闭连接';
+      } else {
+        statusText.value = `🔌 连接断开（状态码：${event.code}），3秒后重连...`;
+        reconnectTimer = setTimeout(initWebSocket, 3000);
+      }
+      console.log('WebSocket 关闭，状态码：', event.code);
+    };
+  } catch (e) {
+    status.value = 'error';
+    statusText.value = '❌ 初始化WebSocket失败';
+    console.error('初始化失败：', e);
+    reconnectTimer = setTimeout(initWebSocket, 3000);
+  }
 };
 
-// 发送消息
 const sendMessage = () => {
-  // 校验输入
   const msg = inputMsg.value.trim();
   if (!msg) return;
 
-  // 检查连接状态：只有 OPEN 状态才能发送
   if (ws && ws.readyState === WebSocket.OPEN) {
-    // 发送消息到服务端
     ws.send(msg);
-    // 把发送的消息添加到本地列表
     messageList.value.push({
       content: msg,
-      isSent: true, // 发送的消息
+      isSent: true,
       time: formatTime()
     });
-    // 清空输入框
     inputMsg.value = '';
     console.log('发送消息：', msg);
   } else {
@@ -141,12 +134,9 @@ const sendMessage = () => {
   }
 };
 
-// 手动关闭连接
 const closeWebSocket = () => {
   if (ws) {
-    // 1000 是正常关闭的状态码，用于区分手动/异常关闭
     ws.close(1000, '用户手动关闭');
-    // 清空重连定时器（避免关闭后还重连）
     if (reconnectTimer) clearTimeout(reconnectTimer);
   }
 };
@@ -154,13 +144,82 @@ const closeWebSocket = () => {
 // --------------------------
 // 5. Vue 生命周期管理
 // --------------------------
-// 组件挂载时：初始化 WebSocket
 onMounted(() => {
   initWebSocket();
 });
 
-// 组件卸载时：关闭连接 + 清空定时器（避免内存泄漏）
 onUnmounted(() => {
   closeWebSocket();
 });
 </script>
+
+<style scoped>
+/* 补充样式，让页面更易读（可选） */
+.status {
+  text-align: center;
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.connecting { background: #fef3c7; color: #d97706; }
+.open { background: #dcfce7; color: #16a34a; }
+.error { background: #fee2e2; color: #dc2626; }
+.closed { background: #e5e7eb; color: #4b5563; }
+
+.message-list {
+  height: 300px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 10px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.message-item {
+  margin-bottom: 8px;
+  max-width: 70%;
+}
+.sent {
+  margin-left: auto;
+}
+.received {
+  margin-right: auto;
+}
+.content {
+  padding: 6px 10px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+.sent .content {
+  background: #3b82f6;
+  color: white;
+}
+.received .content {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.input-area {
+  display: flex;
+  gap: 8px;
+}
+input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.send-btn {
+  background: #3b82f6;
+  color: white;
+}
+.close-btn {
+  background: #ef4444;
+  color: white;
+}
+</style>
